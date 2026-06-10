@@ -78,7 +78,7 @@ def fmt_seace(item: dict, n: int) -> str:
     return (
         f"*[{n}/25]* `{cod}`\n"
         f"{entidad}\n"
-        f"{tipo}: {desc}\n"
+        f"*{tipo}:* {desc}\n"
         f"Pub: {pub} | {cotizar_line}"
     )
 
@@ -86,8 +86,18 @@ def fmt_seace(item: dict, n: int) -> str:
 
 def fetch_sunarp() -> list:
     url = "https://8uit.sunarp.gob.pe/portal/zona-registral/zona-registral-n-v-sede-trujillo"
-    r = requests.get(url, headers=HEADERS, timeout=30)
-    r.raise_for_status()
+    # Reintentos porque el servidor a veces es lento desde IPs externas
+    for attempt in range(3):
+        try:
+            r = requests.get(url, headers=HEADERS, timeout=60)
+            r.raise_for_status()
+            break
+        except Exception as e:
+            if attempt == 2:
+                raise
+            import time; time.sleep(5)
+    else:
+        raise Exception("SUNARP no respondio tras 3 intentos")
     soup = BeautifulSoup(r.content, "html.parser")
     items = []
 
@@ -271,17 +281,4 @@ def main(turno: str = "MANANA"):
         else:
             send("*--- MPFN La Libertad ---*\nSin convocatorias activas")
     except Exception as e:
-        send(f"[MPFN] Error: {e}")
-        print(f"    ERROR: {e}")
-
-    # Pie
-    send(
-        f"{'='*20}\n"
-        f"Reporte completo: SEACE + SUNARP + PNSR + MPFN\n"
-        f"Proximo reporte: {next_rep}"
-    )
-    print(f"[OK] Reporte {turno} enviado.")
-
-
-if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "MANANA")
+  
