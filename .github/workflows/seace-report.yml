@@ -1,0 +1,37 @@
+name: SEACE La Libertad - Telegram
+
+on:
+  schedule:
+    - cron: '0 13 * * *'
+    - cron: '30 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  send-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Determine turno
+        id: turno
+        run: |
+          HOUR=$(date -u +%H)
+          if [ "$HOUR" -ge 12 ] && [ "$HOUR" -lt 20 ]; then
+            echo "TURNO=MANANA" >> $GITHUB_OUTPUT
+          else
+            echo "TURNO=TARDE" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run SEACE report
+        run: python seace_report.py "${{ steps.turno.outputs.TURNO }}"
