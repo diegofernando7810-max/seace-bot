@@ -1,0 +1,20 @@
+name: SEACE La Libertad Telegram
+on:
+  schedule:
+    - cron: '0 13 * * *'
+    - cron: '30 23 * * *'
+  workflow_dispatch:
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - id: t
+        run: |
+          H=$(date -u +%H)
+          if [ "$H" -ge 12 ] && [ "$H" -lt 20 ]; then echo "T=MANANA" >> $GITHUB_OUTPUT; else echo "T=TARDE" >> $GITHUB_OUTPUT; fi
+      - run: python seace_report.py ${{ steps.t.outputs.T }}
