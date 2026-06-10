@@ -281,4 +281,17 @@ def main(turno: str = "MANANA"):
         else:
             send("*--- MPFN La Libertad ---*\nSin convocatorias activas")
     except Exception as e:
-  
+        send(f"[MPFN] Error: {e}")
+        print(f"    ERROR: {e}")
+
+    # Pie
+    send(
+        f"{'='*20}\n"
+        f"Reporte completo: SEACE + SUNARP + PNSR + MPFN\n"
+        f"Proximo reporte: {next_rep}"
+    )
+    print(f"[OK] Reporte {turno} enviado.")
+
+
+if __name__ == "__main__":
+    main(sys.argv[1] if len(sys.argv) > 1 else "MANANA")
