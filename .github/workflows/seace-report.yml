@@ -1,29 +1,26 @@
-name: SEACE La Libertad - Telegram
+name: Reporte Compras Publicas - La Libertad
 
 on:
   schedule:
-    - cron: '0 13 * * *'
-    - cron: '30 23 * * *'
+    - cron: '0 13 * * *'    # 8:00 AM Peru (UTC-5)
+    - cron: '30 23 * * *'   # 6:30 PM Peru (UTC-5)
   workflow_dispatch:
 
 jobs:
   send-report:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python 3.11
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: pip install requests
+      - name: Instalar dependencias
+        run: pip install requests beautifulsoup4
 
-      - name: Determine turno
+      - name: Determinar turno
         id: turno
         run: |
           HOUR=$(date -u +%H)
@@ -33,5 +30,5 @@ jobs:
             echo "TURNO=TARDE" >> $GITHUB_OUTPUT
           fi
 
-      - name: Run SEACE report
+      - name: Enviar reporte a Telegram
         run: python seace_report.py "${{ steps.turno.outputs.TURNO }}"
