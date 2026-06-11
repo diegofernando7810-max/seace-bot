@@ -37,6 +37,8 @@ def send(text: str):
 
 # ---------- 1. SEACE --------------------------------------------------------
 
+TIPO_INFO = {1: ("📦", "Bien"), 2: ("🔧", "Servicio"), 3: ("🏗", "Obra")}
+
 def fetch_seace() -> list:
     base = "https://prod6.seace.gob.pe/v1/s8uit-services/buscadorpublico/contrataciones/buscador"
     raw = []
@@ -58,35 +60,37 @@ def fetch_seace() -> list:
 
 
 def fmt_seace(item: dict, n: int) -> str:
-    tipos = {1: "Bien", 2: "Servicio", 3: "Obra"}
-    tipo  = tipos.get(item.get("idObjetoContrato", 2), "Otro")
-    estado = item.get("nomEstadoContrato", "")
-    pub   = item.get("fecPublica", "")[:16]
-    desc  = (item.get("desObjetoContrato") or "")[:80]
-    cod   = item.get("desContratacion", "")
+    emoji, label = TIPO_INFO.get(item.get("idObjetoContrato", 2), ("📄", "Otro"))
+    estado  = item.get("nomEstadoContrato", "")
+    pub     = item.get("fecPublica", "")[:16]
+    desc    = (item.get("desObjetoContrato") or "")[:80]
+    cod     = item.get("desContratacion", "")
     entidad = item.get("nomEntidad", "")
 
     if estado.lower() == "culminado":
-        cotizar_line = "Estado: CULMINADO"
+        cotizar_line = "🔴 Estado: CULMINADO"
     else:
-        cotizar_line = "Cotizar: SI" if item.get("cotizar") else "Cotizar: NO"
+        if item.get("cotizar"):
+            cotizar_line = "✅ Cotizar: SI"
+        else:
+            cotizar_line = "❌ Cotizar: NO"
         ini = item.get("fecIniCotizacion", "")[:16]
         fin = item.get("fecFinCotizacion", "")[:16]
         if ini:
-            cotizar_line += f" | {ini} - {fin}"
+            cotizar_line += f"  |  {ini} → {fin}"
 
     return (
-        f"*[{n}/25]* `{cod}`\n"
-        f"{entidad}\n"
-        f"*{tipo}:* {desc}\n"
-        f"Pub: {pub} | {cotizar_line}"
+        f"🔹 *[{n}/25]* `{cod}`\n"
+        f"🏛 {entidad}\n"
+        f"{emoji} *{label}: {desc}*\n"
+        f"📅 Pub: {pub}\n"
+        f"{cotizar_line}"
     )
 
 # ---------- 2. SUNARP Trujillo ----------------------------------------------
 
 def fetch_sunarp() -> list:
     url = "https://8uit.sunarp.gob.pe/portal/zona-registral/zona-registral-n-v-sede-trujillo"
-    # Reintentos porque el servidor a veces es lento desde IPs externas
     for attempt in range(3):
         try:
             r = requests.get(url, headers=HEADERS, timeout=60)
@@ -101,7 +105,6 @@ def fetch_sunarp() -> list:
     soup = BeautifulSoup(r.content, "html.parser")
     items = []
 
-    # Intenta parsear tarjetas/cards con datos de requerimiento
     for card in soup.find_all(True, class_=re.compile(r"card|item|req|proceso", re.I)):
         text = card.get_text(" ", strip=True)
         if "REQ." not in text and "Fecha de publicaci" not in text:
@@ -120,7 +123,6 @@ def fetch_sunarp() -> list:
             "vence":  ven_m.group(1) if ven_m else "",
         })
 
-    # Fallback: barrido del texto completo si no hay tarjetas
     if not items:
         full = soup.get_text(" ", strip=True)
         blocks = re.split(r"(?=(?:BIENES|SERVICIOS|OBRAS)[\s:])", full, flags=re.I)
@@ -140,9 +142,9 @@ def fetch_sunarp() -> list:
 
 def fmt_sunarp(item: dict, n: int) -> str:
     return (
-        f"*{n}.* {item['titulo'][:80]}\n"
-        f"REQ: {item['req']} | Pub: {item['pub']}\n"
-        f"Vence: {item['vence']}"
+        f"🔹 *{n}.* *{item['titulo'][:80]}*\n"
+        f"📋 REQ: `{item['req']}`\n"
+        f"📅 Pub: {item['pub']}  |  ⏳ Vence: {item['vence']}"
     )
 
 # ---------- 3. PNSR ---------------------------------------------------------
@@ -173,7 +175,11 @@ def fmt_pnsr(item: dict, n: int) -> str:
     desc = (item.get("descripcion", item.get("objeto", "")) or "")[:80]
     pub  = str(item.get("fechaPublicacion", item.get("fecPublicacion", "")))[:16]
     ven  = str(item.get("fechaVencimiento", item.get("fecVencimiento", "")))[:16]
-    return f"*{n}.* {exp}\n{desc}\nPub: {pub} | Vence: {ven}"
+    return (
+        f"🔹 *{n}.* `{exp}`\n"
+        f"📄 *{desc}*\n"
+        f"📅 Pub: {pub}  |  ⏳ Vence: {ven}"
+    )
 
 # ---------- 4. MPFN ---------------------------------------------------------
 
@@ -204,7 +210,12 @@ def fmt_mpfn(item: dict, n: int) -> str:
     desc    = (item.get("descripcion", item.get("objeto", "")) or "")[:80]
     pub     = str(item.get("fechaPublicacion", ""))[:16]
     ven     = str(item.get("fechaVencimiento", ""))[:16]
-    return f"*{n}.* {entidad}\n{tipo}: {desc}\nPub: {pub} | Vence: {ven}"
+    return (
+        f"🔹 *{n}.* 🏛 {entidad}\n"
+        f"🔖 {tipo}\n"
+        f"📄 *{desc}*\n"
+        f"📅 Pub: {pub}  |  ⏳ Vence: {ven}"
+    )
 
 # ---------- Reporte principal -----------------------------------------------
 
@@ -213,30 +224,31 @@ def main(turno: str = "MANANA"):
     next_rep = "6:30 PM" if turno == "MANANA" else "8:00 AM"
     fecha    = datetime.now().strftime("%d/%m/%Y")
     hora     = datetime.now().strftime("%H:%M")
+    icono    = "🌅" if turno == "MANANA" else "🌆"
 
     print(f"[{hora}] Iniciando reporte {turno}...")
 
     # Cabecera
     send(
-        f"*REPORTE COMPRAS PUBLICAS - {turno}*\n"
-        f"Region: LA LIBERTAD\n"
-        f"Fecha: {fecha} | Hora: {hora}\n"
-        f"Fuentes: SEACE | SUNARP | PNSR | MPFN\n"
-        f"{'='*20}"
+        f"{icono} *REPORTE COMPRAS PUBLICAS — {turno}*\n"
+        f"📍 Region: LA LIBERTAD\n"
+        f"📅 Fecha: {fecha}  |  🕐 Hora: {hora}\n"
+        f"🔗 Fuentes: SEACE | SUNARP | PNSR | MPFN\n"
+        f"{'─'*22}"
     )
 
     # 1. SEACE
     print("  [1/4] SEACE...")
     try:
         seace = fetch_seace()
-        send(f"*--- SEACE: {len(seace)} procesos recientes ---*")
+        send(f"📋 *SEACE — {len(seace)} procesos recientes*")
         for start in range(0, len(seace), 5):
             batch = seace[start:start+5]
             send("\n\n".join(fmt_seace(x, start+i+1) for i, x in enumerate(batch)))
         cotizar_n = sum(1 for x in seace if x.get("cotizar"))
-        send(f"SEACE: {len(seace)} procesos | Pueden cotizar: {cotizar_n}")
+        send(f"📊 SEACE: {len(seace)} procesos  |  ✅ Pueden cotizar: *{cotizar_n}*")
     except Exception as e:
-        send(f"[SEACE] Error: {e}")
+        send(f"⚠️ [SEACE] Error: {e}")
         print(f"    ERROR: {e}")
 
     # 2. SUNARP
@@ -245,13 +257,13 @@ def main(turno: str = "MANANA"):
         sunarp = fetch_sunarp()
         if sunarp:
             send(
-                f"*--- SUNARP Trujillo: {len(sunarp)} requerimientos activos ---*\n\n"
+                f"🗺 *SUNARP Trujillo — {len(sunarp)} requerimientos activos*\n\n"
                 + "\n\n".join(fmt_sunarp(x, i+1) for i, x in enumerate(sunarp[:10]))
             )
         else:
-            send("*--- SUNARP Trujillo ---*\nSin requerimientos activos")
+            send("🗺 *SUNARP Trujillo*\nSin requerimientos activos")
     except Exception as e:
-        send(f"[SUNARP] Error: {e}")
+        send(f"⚠️ [SUNARP] Error: {e}")
         print(f"    ERROR: {e}")
 
     # 3. PNSR
@@ -260,13 +272,13 @@ def main(turno: str = "MANANA"):
         pnsr = fetch_pnsr()
         if pnsr:
             send(
-                f"*--- PNSR La Libertad: {len(pnsr)} contrataciones vigentes ---*\n\n"
+                f"💧 *PNSR La Libertad — {len(pnsr)} contrataciones vigentes*\n\n"
                 + "\n\n".join(fmt_pnsr(x, i+1) for i, x in enumerate(pnsr[:10]))
             )
         else:
-            send("*--- PNSR La Libertad ---*\nSin contrataciones vigentes")
+            send("💧 *PNSR La Libertad*\nSin contrataciones vigentes")
     except Exception as e:
-        send(f"[PNSR] Error: {e}")
+        send(f"⚠️ [PNSR] Error: {e}")
         print(f"    ERROR: {e}")
 
     # 4. MPFN
@@ -275,20 +287,20 @@ def main(turno: str = "MANANA"):
         mpfn = fetch_mpfn()
         if mpfn:
             send(
-                f"*--- MPFN La Libertad: {len(mpfn)} convocatorias activas ---*\n\n"
+                f"⚖️ *MPFN La Libertad — {len(mpfn)} convocatorias activas*\n\n"
                 + "\n\n".join(fmt_mpfn(x, i+1) for i, x in enumerate(mpfn[:10]))
             )
         else:
-            send("*--- MPFN La Libertad ---*\nSin convocatorias activas")
+            send("⚖️ *MPFN La Libertad*\nSin convocatorias activas")
     except Exception as e:
-        send(f"[MPFN] Error: {e}")
+        send(f"⚠️ [MPFN] Error: {e}")
         print(f"    ERROR: {e}")
 
     # Pie
     send(
-        f"{'='*20}\n"
-        f"Reporte completo: SEACE + SUNARP + PNSR + MPFN\n"
-        f"Proximo reporte: {next_rep}"
+        f"{'─'*22}\n"
+        f"✅ Reporte completo: SEACE + SUNARP + PNSR + MPFN\n"
+        f"⏰ Proximo reporte: *{next_rep}*"
     )
     print(f"[OK] Reporte {turno} enviado.")
 
