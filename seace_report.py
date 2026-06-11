@@ -18,7 +18,10 @@ from datetime import datetime
 from bs4 import BeautifulSoup
 
 TELEGRAM_TOKEN   = "8905726945:AAFjo4JezGkwWUowGeNZlU8lPS0KLGOwGJ8"
-TELEGRAM_CHAT_ID = "8718161110"
+TELEGRAM_CHAT_IDS = [
+    "8718161110",   # Diego Quevedo
+    "8616483587",   # Omar Zulueta V
+]
 ANIO = datetime.now().year
 
 HEADERS = {
@@ -29,11 +32,12 @@ HEADERS = {
 # ---------- Telegram --------------------------------------------------------
 
 def send(text: str):
-    requests.post(
-        f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
-        json={"chat_id": TELEGRAM_CHAT_ID, "text": text, "parse_mode": "Markdown"},
-        timeout=30,
-    )
+    for cid in TELEGRAM_CHAT_IDS:
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage",
+            json={"chat_id": cid, "text": text, "parse_mode": "Markdown"},
+            timeout=30,
+        )
 
 # ---------- 1. SEACE --------------------------------------------------------
 
